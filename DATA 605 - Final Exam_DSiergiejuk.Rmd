@@ -1,0 +1,475 @@
+---
+title: "DATA 605 - Final Exam"
+author: "Dariusz Siergiejuk"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## Computational Mathematics
+
+Your final is due by the end of the last week of class.  You should post your solutions to your GitHub account or RPubs.  You are also expected to make a short presentation via YouTube  and post that recording to the board.  This project will show off your ability to understand the elements of the class.
+
+#### Loading All Applicable Libraries.
+
+```{r, echo = FALSE, message = FALSE}
+library(kableExtra)
+library(tidyverse)
+library(MASS)
+library(matrixcalc)
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+```
+
+
+### Problem 1
+
+<p>Using R, generate a random variable X that has `10,000` random uniform numbers from `1` to `N`, where `N` can be any number of your choosing greater than or equal to `6`.  Then generate a random variable `Y` that has `10,000` random normal numbers with a mean of $\mu = \beta = \frac{(N+1)}{2}$.
+
+```{r, echo = FALSE, message = FALSE}
+# Generating random variable X.
+
+N <- round(runif(1, 10, 100))
+n <- 1000
+X <- runif(n, min=0, max=N)
+hist(X)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Generating random variable Y.
+
+N <- round(runif(1, 10, 100))
+n <- 1000
+Y <- rnorm(n, (N+1)/2, (N+1)/2)
+hist(Y)
+```
+
+
+<p>**Probability**. Calculate as a minimum the below probabilities a through c. Assume the small letter "x" is estimated as the median of the X variable, and the small letter "y" is estimated as the 1st quartile of the Y variable. Interpret the meaning of all probabilities.
+
+<p>**5 points**           a.   $P(X>x | X>y)$		b.  $P(X>x, Y>y)$		c.  $P(X<x | X>y)$
+
+
+```{r, echo = FALSE, message = FALSE}
+x <- median(X)
+x
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+y <- quantile(Y, 0.25)
+y
+```
+
+
+<p>a. $P(X>x | X>y)$
+
+```{r, echo = FALSE, message = FALSE}
+# Probability of sum(X>x & X>y) over sum(X>y)
+
+Px_and_Py <- sum(X>x & X>y)/n
+Py <- sum(X>y)/n
+
+round(Px_and_Py/Py, 2)
+```
+
+
+<p>The calculated probability for X is greater from the median.
+
+<p>b. $P(X>x, Y>y)$
+
+
+```{r, echo = FALSE, message = FALSE}
+Px_Py <- (sum(X>x & Y>y))/n
+round(Px_Py, 2)
+```
+
+
+<p>The calculated probability for X is greater than all X and Y are greater from all y.
+
+<p>c. $P(X<x | X>y)$
+
+```{r, echo = FALSE, message = FALSE}
+Px_and_Py <- sum(X<x & X>y)/n
+Py <- sum(X>y)/n
+
+round(Px_and_Py/Py, 2)
+```
+
+
+<p>The calculated probability for X is greater from the median.
+
+
+<p>**5 points.** Investigate whether $P(X>x \ and  \ Y>y) = P(X>x) P(Y>y)$ by building a table and evaluating the marginal and joint probabilities.
+
+```{r, echo = FALSE, message = FALSE}
+# Building the Matrix.
+
+matrix <- matrix( c(sum(X>x & Y<y),sum(X>x & Y>y), sum(X<x & Y<y),sum(X<x & Y>y)), nrow = 2,ncol = 2)
+
+# Adding Total.
+
+matrix <- cbind(matrix,c(matrix[1,1]+matrix[1,2],matrix[2,1]+matrix[2,2]))
+
+# Merging Them.
+
+matrix <- rbind(matrix,c(matrix[1,1]+matrix[2,1],matrix[1,2]+matrix[2,2],matrix[1,3]+matrix[2,3]))
+
+# Converting into Data Frame.
+
+matrix_df <- as.data.frame(matrix)
+
+# Replacing the Name of the Columns and Rows.
+
+names(matrix_df) <- c("X>x","X<x", "Total")
+row.names(matrix_df) <- c("Y<y","Y>y", "Total")
+
+# Obtaining the Joint and Marginal Probabilities by Dividing the Values from the Total 9900.
+
+prob_matrix <- matrix/matrix[3,3]
+prob_matrix <- as.data.frame(prob_matrix)
+names(prob_matrix) <- c("X>x","X<x", "Total")
+row.names(prob_matrix) <- c("Y<y","Y>y", "Total")
+prob_matrix
+```
+
+
+<p>The total for both row and column represents the marginal probability distributions.
+
+<p>The joint probability distribution comprises of the values in the table cells of sum(X>x & Y<y), sum(X>x & Y>y), sum(X<x & Y<y), sum(X<x & Y>y).
+
+
+<p>**5 points.**  Check to see if independence holds by using Fisher’s Exact Test and the Chi Square Test.  What is the difference between the two? Which is most appropriate?
+
+<p>Fisher’s Exact Test is a non-parametric alternative to the Chi Square Test and is utilized if the cell sizes are less than 5. The Chi-Square test in the event of the greater amount of cell sizes, it is the most sutable in this situation.
+
+```{r, echo = FALSE, message = FALSE}
+# Fisher's Exact Test.
+
+fisher.test(matrix_df, simulate.p.value=T)
+
+# Chi Square Test.
+
+CHI <- chisq.test(matrix_df, correct=T)
+```
+
+
+<p>The `p-value` is about the same for both tests and is greater than 0.05. Thus, we fail to reject the null hypothesis that $P(X>x)$ and $P(Y>y)$ are independent. Fisher's Exact Test is used to examine the association between two categorical variables when cell sizes are small (less than 5). The Chi Square Test is utilized when cell sizes are large. The Fisher's Exact Test is most appropriate because it is typically used only for `2 by 2`     contingency table and being more accurate.
+
+### Problem 2
+
+<p>You are to register for Kaggle.com (free) and compete in the House Prices: Advanced Regression Techniques competition. https://www.kaggle.com/c/house-prices-advanced-regression-techniques. I want you to do the following.
+
+
+```{r, echo = FALSE, message = FALSE}
+# Obtaining univariate descriptive statistics and relevant plots for the training data set. 
+
+training_dataset = read.csv("train.csv")
+head(training_dataset)
+```
+
+### Descriptive and Inferential Statistics.
+
+
+<p>**5 points.**  __Descriptive and Inferential Statistics.__ Provide univariate descriptive statistics and appropriate plots for the training data set.  Provide a scatterplot matrix for at least two of the independent variables and the dependent variable. Derive a correlation matrix for any three quantitative variables in the dataset. Test the hypotheses that the correlations between each pairwise set of variables is 0 and provide an 80% confidence interval. Discuss the meaning of your analysis.  Would you be worried about familywise error? Why or why not?
+
+
+```{r, echo = FALSE, message = FALSE}
+test_dataset = read.csv("test.csv")
+head(test_dataset)
+```
+
+```{r, echo = FALSE, message = FALSE}
+# Obtaining the mean, median and sd of the SalePrice for the houses.
+
+mean(training_dataset$SalePrice)
+median(training_dataset$SalePrice)
+sd(training_dataset$SalePrice)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Creating Sample Box Plot.
+
+ggplot(training_dataset, aes(x = YearBuilt, y = SalePrice, fill = YearBuilt, group = YearBuilt)) +
+  geom_boxplot()
+```
+
+
+
+```{r, echo = FALSE, message = FALSE}
+# Visualizing
+
+training_dataset$OverallQual_factor <- as.factor(as.character(training_dataset$OverallQual))
+ggplot(training_dataset, aes(x=OverallQual, y=SalePrice, fill=OverallQual_factor)) + geom_boxplot()
+```
+
+```{r, echo = FALSE, message = FALSE}
+# Generating Linear Model.
+training_dataset.lm = lm(training_dataset$SalePrice ~ training_dataset$BldgType)
+summary(training_dataset.lm)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Obtaining residual analysis to ascertain model soundness.
+
+plot(fitted(training_dataset.lm, resid(training_dataset.lm)))
+qqnorm(resid(training_dataset.lm))
+qqline(resid(training_dataset.lm))
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Subsetting data with selected columns.
+# Creating a scatterplot and correlation matrix.
+
+correlation_data<-dplyr::select(training_dataset, SalePrice, GrLivArea, LotArea, YearBuilt, GarageArea, FullBath, OverallQual)
+correlation_matrix<-round(cor(correlation_data),4)
+correlation_matrix
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+corrplot(correlation_matrix,method ="color")
+```
+
+```{r, echo = FALSE, message = FALSE}
+plot(correlation_data, col="#69b3a2")
+```
+
+```{r, echo = FALSE, message = FALSE}
+# SalePrice vs GrLivArea.
+
+cor.test(correlation_data$SalePrice,correlation_data$GrLivArea, conf.level = 0.8)
+```
+
+<p>There is 80% confidence that the correlation between both variables lies between 0.6915087 and 0.7249450 values.
+
+
+```{r, echo = FALSE, message = FALSE}
+# SalePrice vs YearBuilt.
+
+cor.test(correlation_data$SalePrice,correlation_data$YearBuilt, conf.level = 0.8)
+```
+
+
+<p>There is 80% confidence that the correlation between both variables lies between 0.4980766 and 0.5468619 values.
+
+
+```{r, echo = FALSE, message = FALSE}
+# SalePrice vs OverallQual.
+
+cor.test(correlation_data$SalePrice,correlation_data$OverallQual, conf.level = 0.8)
+```
+
+
+<p>There is 80% confidence that the correlation between both variables lies between 0.7780752 and 0.8032204 values.
+
+<p>Where a low p-value appears, there is not much concern for familywise error.
+
+### Linear Algebra and Correlation.
+
+<p>**5 points.** __Linear Algebra and Correlation.__  Invert your correlation matrix from above. (This is known as the precision matrix and contains variance inflation factors on the diagonal.) Multiply the correlation matrix by the precision matrix, and then multiply the precision matrix by the correlation matrix. Conduct LU decomposition on the matrix.
+
+
+```{r, echo = FALSE, message = FALSE}
+# Inverting the matrix with the precision matrix.
+
+precision_matrix<-solve(correlation_matrix)
+round(precision_matrix,4)
+```
+
+
+
+```{r, echo = FALSE, message = FALSE}
+# Multiplying the correlation matrix and the precision matrix, next multiplying the precision matrix and the correlation matrix.
+
+round(correlation_matrix %*% precision_matrix,4)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+round(precision_matrix %*% correlation_matrix,4)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Conducting LU decomposition on the matrix.
+
+A <- correlation_matrix
+luA <- lu.decomposition(A)
+L <- luA$L
+U <- luA$U
+print(L)
+```
+
+
+
+```{r, echo = FALSE, message = FALSE}
+print(U)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+print(L %*% U)
+```
+
+
+
+```{r, echo = FALSE, message = FALSE}
+print(A)
+```
+
+
+
+```{r, echo = FALSE, message = FALSE}
+# Comparing the original matrix with the correlation matrix.
+
+round(L %*% U ,4) == round(correlation_matrix,4)
+```
+
+
+### Calculus-Based Probability & Statistics.
+
+
+<p>**5 points.**  __Calculus-Based Probability & Statistics.__  Many times, it makes sense to fit a closed form distribution to data. Select a variable in the Kaggle.com training dataset that is skewed to the right, shift it so that the minimum value is absolutely above zero if necessary. Then load the MASS package and run `fitdistr` to fit an exponential probability density function. (See  https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/fitdistr.html). Find the optimal value of $\lambda$ for this distribution, and then take 1000 samples from this exponential distribution using this value (e.g., $rexp(1000, \lambda)$). Plot a histogram and compare it with a histogram of your original variable. Using the exponential pdf, find the $5th$ and $95th$ percentiles using the cumulative distribution function (CDF). Also generate a 95% confidence interval from the empirical data, assuming normality. Finally, provide the empirical $5th$ percentile and $95th$ percentile of the data. Discuss.
+
+
+```{r, echo = FALSE, message = FALSE}
+# LotFrontage appears right skewed.
+
+right_skew_var = hist(training_dataset$GrLivArea)
+right_skew_var
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+fit = fitdistr(training_dataset$GrLivArea, "exponential")
+
+# Histogram of the sim and the fit model.
+
+l<-fit$estimate
+sim<- rexp(1000,l)
+hist(sim,breaks = 50)
+```
+
+```{r, echo = FALSE, message = FALSE}
+sim.df <- data.frame(length = sim)
+fit.df <- data.frame(length = training_dataset$GrLivArea)
+
+sim.df$from <- 'sim'
+fit.df$from <- 'fit'
+
+both.df <- rbind(sim.df,fit.df)
+
+ggplot(both.df, aes(length, fill = from)) + geom_density(alpha = 0.2)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Applying the exponential pdf, locating the 5th and 95th percentiles utilizing the cumulative distribution.
+
+quantile(sim, probs=c(0.05, 0.95))
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Applying the exponential pdf, locating the 5th and 95th percentiles utilizing the cumulative distribution.
+
+quantile(training_dataset$GrLivArea, probs=c(0.05, 0.95))
+```
+
+
+### Modeling.
+
+
+<p>**10 points.**  __Modeling.__  Build some type of multiple regression  model and submit your model to the competition board.  Provide your complete model summary and results with analysis.  Report your Kaggle.com user name and score.
+
+<p>The analysis of dataset at hand is to show what factors impact price of real estate. The included factors are as follows: the transaction date, house age, distance to the MRT(metro), number of convenience stores, house price of unit area. Smoking.
+
+
+```{r, echo = FALSE, message = FALSE}
+# Loading goodies.
+df = read.csv('train.csv', header = T, na.strings = "NA")
+df1 = read.csv('test.csv', header = T, na.strings = "NA")
+
+head(df)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Merging train and test dataset together.
+# Creating a neighborhood numeric variable.
+
+Neighborhood_var <- aggregate(df[, 81], list(df$Neighborhood), mean)
+
+colnames(Neighborhood_var)<- c("Neighborhood","Neighborhood_Average")
+
+df <- merge(df,Neighborhood_var)
+df1 <- merge(df1,Neighborhood_var)
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+# Summarizing the data.
+
+df_lm = lm(SalePrice ~ GrLivArea + LotArea + OverallQual+  Fireplaces + YearBuilt + BedroomAbvGr +  Neighborhood_Average,  data = df)
+summary(df_lm)
+```
+
+
+
+```{r, echo = FALSE, message = FALSE}
+predicted_lm = predict(df_lm, newdata = df1)
+
+
+# Adding predicted_lm prices to the test data.
+
+df1 = arrange(df1, Id)
+df1$SalePrice = 0
+df1$SalePrice = predicted_lm
+
+# Selecting the id and saleprices and creating a csv file.
+
+selected_df1 = df1 %>% 
+  dplyr::select(2, 82)
+
+write.csv(selected_df1, file = "test_for_house_prices.csv",row.names = F)
+```
+
+<p>P-values addressing and covering all p-values are less than 0.05.
+
+#### Analyzing the Data.
+
+```{r, echo = FALSE, message = FALSE}
+# Residual plot.
+
+plot(fitted(df_lm), resid(df_lm))
+```
+
+<p>Most observations seem to bunched up around zero.
+
+```{r, echo = FALSE, message = FALSE}
+# Visualizing a normal qqpplot to find out where the residual points are located on the line.
+
+qqnorm(resid(df_lm))
+qqline(resid(df_lm))
+```
+
+<p>Majority of the points surround the line, still with some outliers at the end points. A slight right-skewed distribution can be observed here.
+
+### Wrap-up.
+
+<p>The p-values corresponding to every variable comes down to less than 0.05, thus there is no need for the backward elimination process.
+
+<p>The adjusted $R^2$ equals 0.8084 and degrees of freedom is 1450.
+
+
+<p>`Kaggle.com` **username:** `Dariusz Siegiejuk` **scores:** `0.40615` and `0.57738`
+
+<p>`YouTube` presentation: `https://youtu.be/iYa0b1CCUgw`
+
+
+<p>`End of File.`
